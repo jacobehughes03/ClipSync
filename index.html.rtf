@@ -1,19 +1,363 @@
-{\rtf1\ansi\ansicpg1252\cocoartf2759
-\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
-{\colortbl;\red255\green255\blue255;}
-{\*\expandedcolortbl;;}
-\margl1440\margr1440\vieww11520\viewh8400\viewkind0
-\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClipSync Task Management System</title>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <!-- Chart.js for progress bars -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.umd.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .section {
+            display: none;
+        }
+        .section.active {
+            display: block;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .error {
+            color: red;
+            margin-bottom: 10px;
+        }
+        .logout-btn {
+            background-color: #dc3545;
+        }
+        .logout-btn:hover {
+            background-color: #c82333;
+        }
+        .completed-btn {
+            background-color: #28a745;
+        }
+        .completed-btn:hover {
+            background-color: #218838;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        li {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Login Section -->
+        <div id="login-section" class="section active">
+            <h1>Login to ClipSync</h1>
+            <div id="login-error" class="error"></div>
+            <input type="email" id="login-email" placeholder="Email" required>
+            <input type="password" id="login-password" placeholder="Password" required>
+            <button onclick="handleLogin()">Login</button>
+            <p>Don't have an account? <a href="#" onclick="showSection('register-section')">Register</a></p>
+        </div>
 
-\f0\fs24 \cf0 <!DOCTYPE html>\
-<html lang="en">\
-<head>\
-    <meta charset="UTF-8">\
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">\
-    <title>My Simple Website</title>\
-</head>\
-<body>\
-    <h1>Hello, World!</h1>\
-    <p>This is a simple website.</p>\
-</body>\
-</html>}
+        <!-- Register Section -->
+        <div id="register-section" class="section">
+            <h1>Register for ClipSync</h1>
+            <div id="register-error" class="error"></div>
+            <input type="email" id="register-email" placeholder="Email" required>
+            <input type="password" id="register-password" placeholder="Password" required>
+            <input type="text" id="register-name" placeholder="Name" required>
+            <select id="register-role">
+                <option value="editor">Editor</option>
+                <option value="poster">Poster</option>
+            </select>
+            <button onclick="handleRegister()">Register</button>
+            <p>Already have an account? <a href="#" onclick="showSection('login-section')">Login</a></p>
+        </div>
+
+        <!-- Dashboard Section -->
+        <div id="dashboard-section" class="section">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h1>ClipSync Dashboard</h1>
+                <button class="logout-btn" onclick="handleLogout()">Logout</button>
+            </div>
+            <p>Role: <span id="user-role"></span></p>
+            <canvas id="progress-chart" style="margin: 20px 0;"></canvas>
+            <button onclick="showSection('task-creation-section')">Create New Task</button>
+            <h2>Your Tasks</h2>
+            <ul id="task-list"></ul>
+            <h2>Notifications</h2>
+            <ul id="notification-list"></ul>
+        </div>
+
+        <!-- Task Creation Section -->
+        <div id="task-creation-section" class="section">
+            <h1>Create Task</h1>
+            <input type="text" id="task-title" placeholder="Task Title" required>
+            <select id="task-project" required>
+                <option value="">Select Project</option>
+            </select>
+            <select id="task-assignee" required>
+                <option value="">Select Assignee</option>
+            </select>
+            <select id="task-platform">
+                <option value="TikTok">TikTok</option>
+                <option value="Instagram">Instagram</option>
+                <option value="YouTube">YouTube</option>
+            </select>
+            <input type="date" id="task-due-date" required>
+            <button onclick="handleCreateTask()">Create Task</button>
+            <button onclick="showSection('dashboard-section')">Back to Dashboard</button>
+        </div>
+    </div>
+
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "your_api_key",
+            authDomain: "your_auth_domain",
+            projectId: "your_project_id",
+            storageBucket: "your_storage_bucket",
+            messagingSenderId: "your_sender_id",
+            appId: "your_app_id"
+        };
+        const app = firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // Function URLs (replace with your deployed URLs)
+        const FUNCTION_BASE_URL = "https://us-central1-clipsync.cloudfunctions.net";
+
+        // UI Navigation
+        function showSection(sectionId) {
+            document.querySelectorAll(".section").forEach(section => {
+                section.classList.remove("active");
+            });
+            document.getElementById(sectionId).classList.add("active");
+        }
+
+        // Authentication State Listener
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                showSection("dashboard-section");
+                loadDashboard();
+            } else {
+                showSection("login-section");
+            }
+        });
+
+        // Login Handler
+        async function handleLogin() {
+            const email = document.getElementById("login-email").value;
+            const password = document.getElementById("login-password").value;
+            const errorDiv = document.getElementById("login-error");
+            try {
+                await auth.signInWithEmailAndPassword(email, password);
+            } catch (error) {
+                errorDiv.textContent = "Invalid credentials";
+            }
+        }
+
+        // Register Handler
+        async function handleRegister() {
+            const email = document.getElementById("register-email").value;
+            const password = document.getElementById("register-password").value;
+            const name = document.getElementById("register-name").value;
+            const role = document.getElementById("register-role").value;
+            const errorDiv = document.getElementById("register-error");
+            try {
+                const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+                await db.collection("users").doc(userCredential.user.uid).set({
+                    user_id: userCredential.user.uid,
+                    email,
+                    name,
+                    role
+                });
+                const token = await userCredential.user.getIdToken();
+                await fetch(`${FUNCTION_BASE_URL}/userFunction/user/set-role`, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ role })
+                });
+            } catch (error) {
+                errorDiv.textContent = "Registration failed";
+            }
+        }
+
+        // Logout Handler
+        async function handleLogout() {
+            await auth.signOut();
+        }
+
+        // Load Dashboard Data
+        async function loadDashboard() {
+            const user = auth.currentUser;
+            if (!user) return;
+            const token = await user.getIdToken();
+            const headers = { "Authorization": `Bearer ${token}` };
+
+            // Fetch Role
+            const roleResponse = await fetch(`${FUNCTION_BASE_URL}/userFunction/user/role`, { headers });
+            const roleData = await roleResponse.json();
+            document.getElementById("user-role").textContent = roleData.role;
+
+            // Fetch Projects
+            const projectResponse = await fetch(`${FUNCTION_BASE_URL}/projectFunction/project/list`, { headers });
+            const projects = await projectResponse.json();
+
+            // Fetch Tasks
+            const taskResponse = await fetch(`${FUNCTION_BASE_URL}/taskFunction/task/list`, { headers });
+            const tasks = await taskResponse.json();
+
+            // Fetch Notifications
+            const notifResponse = await fetch(`${FUNCTION_BASE_URL}/taskFunction/task/notifications`, { headers });
+            const notifications = await notifResponse.json();
+
+            // Populate Task List
+            const taskList = document.getElementById("task-list");
+            taskList.innerHTML = "";
+            tasks.forEach(task => {
+                const li = document.createElement("li");
+                li.innerHTML = `
+                    <div>
+                        <p>${task.title} - ${task.platform} - ${task.status}</p>
+                        <p>Due: ${new Date(task.due_date).toLocaleDateString()}</p>
+                    </div>
+                    <button class="completed-btn" onclick="updateTaskStatus('${task.task_id}', 'completed')">Mark Completed</button>
+                `;
+                taskList.appendChild(li);
+            });
+
+            // Populate Notification List
+            const notifList = document.getElementById("notification-list");
+            notifList.innerHTML = "";
+            notifications.forEach(notif => {
+                const li = document.createElement("li");
+                li.textContent = `${notif.message} - ${new Date(notif.timestamp).toLocaleString()}`;
+                notifList.appendChild(li);
+            });
+
+            // Populate Task Creation Form Options
+            const projectSelect = document.getElementById("task-project");
+            projectSelect.innerHTML = "<option value=''>Select Project</option>";
+            projects.forEach(project => {
+                const option = document.createElement("option");
+                option.value = project.project_id;
+                option.textContent = project.name;
+                projectSelect.appendChild(option);
+            });
+
+            const assigneeSelect = document.getElementById("task-assignee");
+            assigneeSelect.innerHTML = "<option value=''>Select Assignee</option>";
+            const usersSnapshot = await db.collection("users").get();
+            usersSnapshot.forEach(doc => {
+                const user = doc.data();
+                const option = document.createElement("option");
+                option.value = user.user_id;
+                option.textContent = `${user.name} (${user.role})`;
+                assigneeSelect.appendChild(option);
+            });
+
+            // Render Progress Chart
+            const ctx = document.getElementById("progress-chart").getContext("2d");
+            new Chart(ctx, {
+                type: "bar",
+                data: {
+                    labels: projects.map(p => p.name),
+                    datasets: [{
+                        label: "Completion %",
+                        data: projects.map(p => {
+                            const projectTasks = tasks.filter(t => t.project_id === p.project_id);
+                            const completed = projectTasks.filter(t => t.status === "completed").length;
+                            return (completed / projectTasks.length) * 100 || 0;
+                        }),
+                        backgroundColor: "rgba(75, 192, 192, 0.2)",
+                        borderColor: "rgba(75, 192, 192, 1)",
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update Task Status
+        async function updateTaskStatus(taskId, status) {
+            const token = await auth.currentUser.getIdToken();
+            await fetch(`${FUNCTION_BASE_URL}/taskFunction/task/update`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ task_id: taskId, status })
+            });
+            loadDashboard();
+        }
+
+        // Create Task Handler
+        async function handleCreateTask() {
+            const title = document.getElementById("task-title").value;
+            const projectId = document.getElementById("task-project").value;
+            const assignee = document.getElementById("task-assignee").value;
+            const platform = document.getElementById("task-platform").value;
+            const dueDate = document.getElementById("task-due-date").value;
+            const token = await auth.currentUser.getIdToken();
+            await fetch(`${FUNCTION_BASE_URL}/taskFunction/task/create`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    project_id: projectId,
+                    title,
+                    assignee,
+                    platform,
+                    due_date: new Date(dueDate).getTime()
+                })
+            });
+            showSection("dashboard-section");
+            loadDashboard();
+        }
+    </script>
+</body>
+</html>
